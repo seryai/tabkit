@@ -82,6 +82,20 @@ for row in &table.sample_rows {
 | `parquet` | Parquet via the `parquet` crate (default features off — no Arrow runtime) | ~3 MB compiled |
 | `full` | `calamine` + `csv` + `parquet` | ~4 MB compiled |
 
+## Examples
+
+Runnable example programs live in [`examples/`](examples/):
+
+- [`inspect.rs`](examples/inspect.rs) — print schema + sample rows
+  for any tabular file. Run with:
+  ```bash
+  cargo run --example inspect -- /path/to/data.xlsx
+  cargo run --example inspect --features parquet -- /path/to/data.parquet
+  ```
+
+More examples (`custom_reader.rs`, `compose_with_duckdb.rs`) land
+in v0.4.x.
+
 ## Stability (v0.4+) {#stability-v04}
 
 v0.4 is the **API stability candidate** for 1.0. The following
