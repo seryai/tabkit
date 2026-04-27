@@ -9,8 +9,9 @@ plus-type-inference glue twice.
 > Parquet (opt-in via `parquet` feature). Schema inference, sample
 > row capping, header detection, ragged-row padding, AND typed
 > `Date` / `DateTime` cells (ISO-8601 strings) emitted by all
-> three readers. SQL-engine-backed SQL queries planned for v0.4 behind
-> another opt-in feature.
+> three readers. **No SQL** — see [When you need SQL](#composing-with-sql-engine)
+> for the recommended pattern. v0.4 will be an API stability
+> audit ahead of 1.0.
 
 ## Why this exists
 
@@ -80,8 +81,35 @@ for row in &table.sample_rows {
 | `default` | both `calamine` + `csv` | ~700 KB compiled |
 | `parquet` | Parquet via the `parquet` crate (default features off — no Arrow runtime) | ~3 MB compiled |
 | `full` | `calamine` + `csv` + `parquet` | ~4 MB compiled |
-| (planned) `sql-engine` | SQL queries on top of read tables | ~50 MB |
-| (planned) `dates` | typed `Date` / `DateTime` variants on `Value` | <1 MB (chrono) |
+
+## When you need SQL {#composing-with-sql-engine}
+
+When you need SQL queries on tabular data, use [`sql-engine`][sql-engine]
+directly — a SQL engine has excellent native readers for CSV and Parquet,
+and it's purpose-built for this. Use `tabkit` for "what's in the
+file" (schema, samples, type inference for the UI / agent
+grounding); use a SQL engine for "compute over the data" (joins,
+aggregates, projections):
+
+```rust
+// 1. tabkit for schema + samples (fast, lightweight)
+let table = tabkit::Engine::with_defaults().read(path, &Default::default())?;
+println!("columns: {:?}", table.columns);
+
+// 2. a SQL engine for the SQL surface (when you actually need it)
+let conn = sql-engine::Connection::open_in_memory()?;
+let path_str = path.display();
+conn.execute(
+    &format!("CREATE TABLE t AS SELECT * FROM read_csv_auto('{path_str}')"),
+    [],
+)?;
+let mut stmt = conn.prepare("SELECT region, SUM(amount) FROM t GROUP BY region")?;
+// ...
+```
+
+Same composition shape works for XLSX (read with calamine, write
+intermediate CSV/Parquet, query with a SQL engine) and Parquet (a SQL engine
+reads natively).
 
 ## License
 
@@ -104,10 +132,29 @@ at your option. SPDX: `MIT OR Apache-2.0`.
       (no chrono dep). All three readers emit typed dates for
       source values that carry date semantics. `Value` is now
       `#[non_exhaustive]` for forward-compat.
-- [ ] v0.4 — SQL feature (optional SQL query interface on top
-      of any read table; opt-in because a SQL engine is a ~50 MB dep).
-- [ ] v0.5 — audit pass + first stable trait release (1.0
-      candidate).
+- [ ] **v0.4 — audit pass + 1.0 candidate.** `#[non_exhaustive]`
+      audit, `#[must_use]` audit, stability commitments doc. Same
+      shape as `mdkit` v0.7 was for the trait-stable release.
+- [ ] **v1.0** — once exercised by at least one downstream
+      production user. Sery Link is the canonical integration
+      target; v1.0 ships once the API survives real use without
+      breaking changes.
+
+### Why no SQL feature
+
+Earlier roadmaps mentioned a v0.x SQL feature for SQL queries
+on top of any read table. We dropped that plan because:
+
+1. **Dep weight.** The bundled `sql-engine` crate is ~50 MB compiled
+   — tabkit's current ~4 MB would 13× by adding it. That violates
+   the "small focused kit" aesthetic.
+2. **Scope creep.** tabkit's contract is "schema + samples from a
+   file." SQL queries are a fundamentally different abstraction:
+   compute over data, not introspect a file.
+3. **a SQL engine has native CSV/Parquet readers.** A tabkit-with-SQL
+   feature would duplicate functionality — users would have two
+   readers for the same format and not know which to pick.
+4. **Composition is cleaner.** See the next section.
 
 Issues, PRs, and design discussion welcome at
 <https://github.com/seryai/tabkit/issues>.
@@ -141,4 +188,5 @@ designed to compose without forcing a particular runtime.
 - [`csv`](https://crates.io/crates/csv) — `BurntSushi`'s
   battle-tested CSV reader. The fast path for CSV/TSV.
 
+[sql-engine]: https://crates.io/crates/sql-engine
 [sery]: https://sery.ai
