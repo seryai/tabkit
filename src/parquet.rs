@@ -170,13 +170,19 @@ fn field_to_value(field: &Field) -> Value {
         Field::Float(f) => Value::Float(f64::from(*f)),
         Field::Double(f) => Value::Float(*f),
         Field::Str(s) => Value::Text(s.clone()),
-        // Decimal, Date, TimestampMillis, TimestampMicros, Bytes,
-        // Group, MapInternal, ListInternal. parquet's `Display`
-        // produces a reasonable text form for all of these (ISO-
-        // ish dates, hex for bytes, JSON-ish for groups/maps/lists).
-        // A future v0.4 `dates` feature could carry typed dates;
-        // a future `nested` feature could expose lists/maps as
-        // their own Value variants.
+        // Date: parquet stores days-since-1970-01-01 as i32. The
+        // crate's `Display` impl emits `YYYY-MM-DD` form, so we
+        // can reuse it without pulling in chrono.
+        Field::Date(_) => Value::Date(format!("{field}")),
+        // Timestamps: parquet's `Display` emits ISO-ish form
+        // (`YYYY-MM-DD HH:MM:SS [+TZ]`). Conform to our contract
+        // by replacing the space separator with `T`.
+        Field::TimestampMillis(_) | Field::TimestampMicros(_) => {
+            Value::DateTime(format!("{field}").replacen(' ', "T", 1))
+        }
+        // Decimal, Bytes, Group, MapInternal, ListInternal flatten
+        // to their parquet `Display` form. A future `nested`
+        // feature could expose lists/maps as typed Value variants.
         other => Value::Text(format!("{other}")),
     }
 }
