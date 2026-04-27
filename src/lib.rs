@@ -150,6 +150,26 @@ pub struct Table {
     pub metadata: std::collections::HashMap<String, String>,
 }
 
+impl Table {
+    /// Construct a `Table` with the given columns and sample rows.
+    /// `row_count` defaults to `None`; `metadata` to empty.
+    /// Mutate the fields after construction if you need to set
+    /// either — the fields stay `pub`.
+    ///
+    /// External crates implementing a custom [`Reader`] go through
+    /// `Table::new` instead of struct-literal syntax (`Table` is
+    /// `#[non_exhaustive]`).
+    #[must_use]
+    pub fn new(columns: Vec<Column>, sample_rows: Vec<Row>) -> Self {
+        Self {
+            columns,
+            sample_rows,
+            row_count: None,
+            metadata: std::collections::HashMap::new(),
+        }
+    }
+}
+
 /// One column's name + inferred type. `nullable` is `true` if any
 /// sample row had a missing/empty value in this position.
 #[derive(Debug, Clone)]
@@ -163,6 +183,21 @@ pub struct Column {
     pub data_type: DataType,
     /// `true` if any sample row had a null/empty cell here.
     pub nullable: bool,
+}
+
+impl Column {
+    /// Construct a `Column` from name + inferred type + nullability.
+    /// Required because `Column` is `#[non_exhaustive]` so external
+    /// crates implementing a custom [`Reader`] can't construct via
+    /// struct-literal syntax.
+    #[must_use]
+    pub fn new(name: impl Into<String>, data_type: DataType, nullable: bool) -> Self {
+        Self {
+            name: name.into(),
+            data_type,
+            nullable,
+        }
+    }
 }
 
 /// Coarse-grained data types the inference pass produces. Designed
