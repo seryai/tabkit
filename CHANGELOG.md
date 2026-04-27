@@ -11,6 +11,23 @@ auxiliary types until 1.0 lands.
 
 ## [Unreleased]
 
+### Roadmap
+
+- **Dropped the planned v0.4 `duckdb` feature.** Earlier release
+  notes mentioned an opt-in DuckDB-backed SQL surface; on
+  reflection that's the wrong abstraction for this crate. Reasons
+  enumerated in the README's [Why no `duckdb` feature](README.md#why-no-duckdb-feature)
+  section: dep weight (~50 MB), scope creep, duplicate-reader
+  confusion, and the cleaner composition pattern of
+  `tabkit` (schema + samples) + `duckdb` (SQL) used as
+  complementary crates.
+- **v0.4 will be an audit + 1.0 candidate** (mirroring mdkit's
+  v0.7 audit shape) — `#[non_exhaustive]` audit, `#[must_use]`
+  audit, stability commitments doc. v1.0 ships once exercised by
+  at least one downstream production user.
+- README updated with a worked "Composing with DuckDB" example
+  and the rationale for the scope decision.
+
 ## [0.3.0] — 2026-04-27
 
 ### Added
