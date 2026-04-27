@@ -11,6 +11,33 @@ auxiliary types until 1.0 lands.
 
 ## [Unreleased]
 
+## [0.4.1] — 2026-04-27
+
+### Added
+
+- **`examples/inspect.rs`** — runnable CLI that takes a path to a
+  tabular file and prints schema + sample rows. Demonstrates the
+  v0.1 `Engine::read` surface, the v0.3 typed `Date` / `DateTime`
+  cells, and (with `--features parquet`) the v0.2 Parquet path.
+  Run with:
+  ```bash
+  cargo run --example inspect -- /path/to/data.xlsx
+  cargo run --example inspect --features parquet -- /path/to/data.parquet
+  ```
+- README "Examples" section pointing at the new `examples/`
+  directory.
+
+### Notes
+
+- v0.4.1 is the first of v0.4.x's planned "examples + cookbook"
+  iteration. Future releases will add a `custom_reader.rs` example
+  (showing how to implement the `Reader` trait for a new format)
+  and a (removed example) example (showing the recommended
+  pattern for SQL queries on tabular data).
+- Examples are deliberately dep-light: no `clap` for arg parsing,
+  no `serde` for output. Reading the surface should not require
+  wading through unrelated crate ceremony.
+
 ## [0.4.0] — 2026-04-27
 
 ### API stability candidate (1.0 prep)
@@ -237,7 +264,8 @@ Both carry `String` payloads; the migration is `match value
   only XLSX/CSV shouldn't pay for them. Planned for v0.2 / v0.3
   behind opt-in features.
 
-[Unreleased]: https://github.com/seryai/tabkit/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/seryai/tabkit/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/seryai/tabkit/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/seryai/tabkit/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/seryai/tabkit/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/seryai/tabkit/compare/v0.1.0...v0.2.0
