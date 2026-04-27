@@ -98,11 +98,6 @@ Runnable example programs live in [`examples/`](examples/):
   ```bash
   cargo run --example custom_reader -- /path/to/data.ssv
   ```
-- The a SQL engine composition pattern is documented in the
-  [When you need SQL](#composing-with-sql-engine) section below
-  rather than shipped as a runnable example. The pattern is short
-  enough to copy-paste and a SQL engine's bundled Windows build was
-  more pain than it was worth for a code snippet.
 
 ## Stability (v0.4+) {#stability-v04}
 
@@ -138,34 +133,16 @@ minor versions:
 1.0 will be cut once the API is exercised by at least one
 downstream production user.
 
-## When you need SQL {#composing-with-sql-engine}
+## When you need SQL
 
-When you need SQL queries on tabular data, use [`sql-engine`][sql-engine]
-directly — a SQL engine has excellent native readers for CSV and Parquet,
-and it's purpose-built for this. Use `tabkit` for "what's in the
-file" (schema, samples, type inference for the UI / agent
-grounding); use a SQL engine for "compute over the data" (joins,
-aggregates, projections):
-
-```rust
-// 1. tabkit for schema + samples (fast, lightweight)
-let table = tabkit::Engine::with_defaults().read(path, &Default::default())?;
-println!("columns: {:?}", table.columns);
-
-// 2. a SQL engine for the SQL surface (when you actually need it)
-let conn = sql-engine::Connection::open_in_memory()?;
-let path_str = path.display();
-conn.execute(
-    &format!("CREATE TABLE t AS SELECT * FROM read_csv_auto('{path_str}')"),
-    [],
-)?;
-let mut stmt = conn.prepare("SELECT region, SUM(amount) FROM t GROUP BY region")?;
-// ...
-```
-
-Same composition shape works for XLSX (read with calamine, write
-intermediate CSV/Parquet, query with a SQL engine) and Parquet (a SQL engine
-reads natively).
+`tabkit` doesn't do SQL — that's a different abstraction (compute
+over data) than what this crate aims at (introspect a file). When
+your application needs queries, pair `tabkit` (for the
+schema-and-samples view a UI / agent renders) with whatever SQL
+crate fits your runtime — pure-Rust query engines, embedded
+databases, ad-hoc Arrow pipelines all compose the same way:
+read the file separately for queries, keep `tabkit`'s `Table` for
+schema awareness.
 
 ## License
 
@@ -201,19 +178,23 @@ at your option. SPDX: `MIT OR Apache-2.0`.
 
 ### Why no SQL feature
 
-Earlier roadmaps mentioned a v0.x SQL feature for SQL queries
+Earlier roadmaps mentioned a v0.x SQL-engine feature for queries
 on top of any read table. We dropped that plan because:
 
-1. **Dep weight.** The bundled `sql-engine` crate is ~50 MB compiled
-   — tabkit's current ~4 MB would 13× by adding it. That violates
-   the "small focused kit" aesthetic.
+1. **Dep weight.** Embedded SQL engines are big — typically tens
+   of MB compiled, sometimes a hundred. Adding one would multiply
+   tabkit's current ~4 MB many times over and violate the "small
+   focused kit" aesthetic.
 2. **Scope creep.** tabkit's contract is "schema + samples from a
    file." SQL queries are a fundamentally different abstraction:
    compute over data, not introspect a file.
-3. **a SQL engine has native CSV/Parquet readers.** A tabkit-with-SQL
-   feature would duplicate functionality — users would have two
-   readers for the same format and not know which to pick.
-4. **Composition is cleaner.** See the next section.
+3. **Engines bring their own readers.** Most SQL engines have
+   native CSV / Parquet readers; bundling one with tabkit would
+   duplicate functionality — users would have two readers per
+   format and not know which to pick.
+4. **Composition is cleaner.** When you want SQL, pair `tabkit`
+   with the SQL crate that fits your runtime; they don't need to
+   share types.
 
 Issues, PRs, and design discussion welcome at
 <https://github.com/seryai/tabkit/issues>.
@@ -247,5 +228,4 @@ designed to compose without forcing a particular runtime.
 - [`csv`](https://crates.io/crates/csv) — `BurntSushi`'s
   battle-tested CSV reader. The fast path for CSV/TSV.
 
-[sql-engine]: https://crates.io/crates/sql-engine
 [sery]: https://sery.ai
