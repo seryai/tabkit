@@ -76,6 +76,11 @@ mod csv;
 #[cfg(feature = "csv")]
 pub use crate::csv::CsvReader;
 
+#[cfg(feature = "parquet")]
+mod parquet;
+#[cfg(feature = "parquet")]
+pub use crate::parquet::ParquetReader;
+
 // ---------------------------------------------------------------------------
 // Table — the unit of output
 // ---------------------------------------------------------------------------
@@ -310,6 +315,10 @@ impl Engine {
         {
             engine.register(Box::new(CsvReader::new()));
         }
+        #[cfg(feature = "parquet")]
+        {
+            engine.register(Box::new(ParquetReader::new()));
+        }
         engine
     }
 
@@ -376,7 +385,10 @@ fn extension_of(path: &Path) -> Option<String> {
 /// - `Integer` + `Float` → `Float`
 /// - `Bool` + anything-else → `Text`
 /// - Anything-else mixed → `Text`
-#[cfg_attr(not(any(feature = "calamine", feature = "csv")), allow(dead_code))]
+#[cfg_attr(
+    not(any(feature = "calamine", feature = "csv", feature = "parquet")),
+    allow(dead_code)
+)]
 pub(crate) fn infer_column_type(samples: &[Value]) -> (DataType, bool) {
     let mut current: Option<DataType> = None;
     let mut nullable = false;
