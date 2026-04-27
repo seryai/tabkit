@@ -11,22 +11,56 @@ auxiliary types until 1.0 lands.
 
 ## [Unreleased]
 
-### Roadmap
+## [0.4.0] — 2026-04-27
 
-- **Dropped the planned v0.4 SQL feature.** Earlier release
-  notes mentioned an opt-in SQL-engine-backed SQL surface; on
-  reflection that's the wrong abstraction for this crate. Reasons
-  enumerated in the README's [Why no SQL feature](README.md#why-no-sql-engine-feature)
-  section: dep weight (~50 MB), scope creep, duplicate-reader
-  confusion, and the cleaner composition pattern of
-  `tabkit` (schema + samples) + `sql-engine` (SQL) used as
-  complementary crates.
-- **v0.4 will be an audit + 1.0 candidate** (mirroring mdkit's
-  v0.7 audit shape) — `#[non_exhaustive]` audit, `#[must_use]`
-  audit, stability commitments doc. v1.0 ships once exercised by
-  at least one downstream production user.
-- README updated with a worked "When you need SQL" example
-  and the rationale for the scope decision.
+### API stability candidate (1.0 prep)
+
+v0.4 is the **API stability candidate** for 1.0. Format coverage
+closed in v0.3 — calamine + csv + parquet readers, typed
+`Date` / `DateTime` cells. v0.4 freezes the public surface ahead
+of 1.0 and locks in SemVer commitments. v0.4.x can iterate on
+examples, docs polish, and niche reader additions without
+changing the public API shape.
+
+### Added
+
+- **Stability section in `lib.rs` module docs** explicitly
+  enumerates what's covered by the API freeze (Reader trait,
+  Engine dispatch surface, Table / Column / Value / Error /
+  ReadOptions / DataType field+variant sets, feature flag names,
+  backend `name()` strings) and what stays implementation detail
+  (private reader layout, exact Table.metadata key sets per
+  backend, auto-registration order).
+- README mirrors the same Stability section.
+
+### Changed
+
+- **No API-shape changes.** v0.4.0 is intentionally a
+  documentation-only release. `#[non_exhaustive]` was already in
+  place on every public struct + enum (added incrementally across
+  v0.1 → v0.3); `#[must_use]` was already on every constructor +
+  builder + accessor. The audit confirmed no gaps.
+
+### Migration
+
+For most callers: bump the dep, rebuild, ship. Zero code changes
+required.
+
+### Notes
+
+- **Why no SQL feature.** Documented in
+  [README §"Why no SQL feature"](README.md#why-no-sql-engine-feature):
+  dep weight (~50 MB), scope creep, duplicate-reader confusion,
+  cleaner composition with `sql-engine` directly. README also adds a
+  worked "When you need SQL" example showing the recommended
+  pattern.
+- v0.4.x will iterate on **examples** (`examples/` directory),
+  **cookbook**-style docs ("how to write a custom reader",
+  "extending the Engine"), and any **niche backend polish** that
+  doesn't change the public surface.
+- 1.0 will be cut once the API is exercised by at least one
+  downstream production user. Sery Link is the canonical
+  integration target.
 
 ## [0.3.0] — 2026-04-27
 
@@ -203,7 +237,8 @@ Both carry `String` payloads; the migration is `match value
   only XLSX/CSV shouldn't pay for them. Planned for v0.2 / v0.3
   behind opt-in features.
 
-[Unreleased]: https://github.com/seryai/tabkit/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/seryai/tabkit/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/seryai/tabkit/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/seryai/tabkit/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/seryai/tabkit/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/seryai/tabkit/releases/tag/v0.1.0
