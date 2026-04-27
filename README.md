@@ -5,12 +5,16 @@ reader Tauri / Iced / native desktop apps reach for when they need
 to introspect XLSX / CSV / TSV without inventing the same calamine-
 plus-type-inference glue twice.
 
-> **Status:** v0.1 — XLSX / XLS / XLSB / XLSM / ODS via
+> **Status:** v0.2 — XLSX / XLS / XLSB / XLSM / ODS via
 > [`calamine`](https://crates.io/crates/calamine), CSV / TSV via
-> [`csv`](https://crates.io/crates/csv). Schema inference, sample
-> row capping, header detection, ragged-row padding all handled.
-> Parquet + DuckDB-backed SQL queries planned for v0.2 behind opt-in
-> features.
+> [`csv`](https://crates.io/crates/csv), AND Parquet via the
+> [`parquet`](https://crates.io/crates/parquet) crate (opt-in
+> behind the `parquet` feature; off by default to keep the
+> XLSX/CSV-only consumer's compile time + binary size low).
+> Schema inference, sample row capping, header detection,
+> ragged-row padding all handled uniformly across formats.
+> DuckDB-backed SQL queries planned for v0.3 behind another
+> opt-in feature.
 
 ## Why this exists
 
@@ -78,8 +82,10 @@ for row in &table.sample_rows {
 | `calamine` (default) | XLSX / XLS / XLSB / XLSM / ODS via `calamine` | ~600 KB compiled |
 | `csv` (default) | CSV / TSV via the `csv` crate | ~100 KB compiled |
 | `default` | both `calamine` + `csv` | ~700 KB compiled |
-| (planned) `parquet` | Parquet via the `parquet` crate | ~? MB |
+| `parquet` | Parquet via the `parquet` crate (default features off — no Arrow runtime) | ~3 MB compiled |
+| `full` | `calamine` + `csv` + `parquet` | ~4 MB compiled |
 | (planned) `duckdb` | SQL queries on top of read tables | ~50 MB |
+| (planned) `dates` | typed `Date` / `DateTime` variants on `Value` | <1 MB (chrono) |
 
 ## License
 
@@ -93,8 +99,11 @@ at your option. SPDX: `MIT OR Apache-2.0`.
       inference (Bool / Integer / Float / Text / Unknown),
       header-or-not, sheet selection for multi-sheet XLSX, ragged
       row padding.
-- [ ] v0.2 — `parquet` feature (read Parquet directly via the
-      `parquet` crate).
+- [x] **v0.2 — `parquet` feature.** Apache Parquet read support
+      via the `parquet` crate (default features off — no Arrow
+      runtime). Same schema-and-samples surface, same type-
+      inference rules. `ULong` overflow falls back to `Text` so
+      values >`i64::MAX` survive the JSON round-trip.
 - [ ] v0.3 — `duckdb` feature (optional SQL query interface on top
       of any read table; opt-in because DuckDB is a ~50 MB dep).
 - [ ] v0.4 — typed dates via a `dates` feature

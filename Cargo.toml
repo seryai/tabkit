@@ -1,6 +1,6 @@
 [package]
 name = "tabkit"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 rust-version = "1.85"
 authors = ["tabkit contributors"]
@@ -25,9 +25,10 @@ default = ["calamine", "csv"]
 # In-process Rust backends.
 calamine = ["dep:calamine"]   # XLSX / XLS / XLSB / XLSM / ODS via the calamine crate
 csv      = ["dep:csv"]        # CSV / TSV via the csv crate
+parquet  = ["dep:parquet"]    # Parquet via the apache parquet crate (no Arrow runtime needed for read)
 
 # Build-everything convenience for downstream tests.
-full = ["calamine", "csv"]
+full = ["calamine", "csv", "parquet"]
 
 [dependencies]
 thiserror = "2"
@@ -36,6 +37,11 @@ thiserror = "2"
 # above; consumers pay only for the surface they enable.
 calamine = { version = "0.34", optional = true }
 csv      = { version = "1", optional = true }
+# Apache Parquet read support. We disable default features so we
+# don't pull in the full Arrow runtime, the async-reader, and the
+# CLI tools — none of which `tabkit`'s schema-and-samples surface
+# needs. Just the plain row reader.
+parquet  = { version = "56", optional = true, default-features = false }
 
 [dev-dependencies]
 tempfile = "3"

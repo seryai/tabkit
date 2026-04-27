@@ -11,6 +11,55 @@ auxiliary types until 1.0 lands.
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-04-27
+
+### Added
+
+- **`ParquetReader`** — Apache Parquet read support, gated behind
+  the new `parquet` feature. Backed by the
+  [`parquet`](https://crates.io/crates/parquet) crate (default
+  features off — we don't need the Arrow runtime, async reader, or
+  CLI helpers for the schema-and-samples surface).
+- **`parquet` feature flag** — opt-in. Not part of `default` so
+  consumers reading only XLSX/CSV don't pay the extra ~3 MB
+  compile cost. The `full` feature enables it alongside calamine
+  + csv.
+- **Parquet `Field` → tabkit `Value` mapping** documented in the
+  module-level docs as a table. Highlights:
+  - `Byte` / `Short` / `Int` / `Long` and `UByte` / `UShort` /
+    `UInt` → `Integer`
+  - `ULong` (≤ `i64::MAX`) → `Integer`; `ULong` (> `i64::MAX`) →
+    `Text` (decimal stringified, so the magnitude survives the
+    JSON round-trip)
+  - `Float` / `Double` → `Float` (lossless `f32`→`f64` widening)
+  - `Decimal` / `Date` / `Timestamp*` / `Bytes` / `Group` / list /
+    map → `Text` (parquet's `Display` form). Typed dates land in
+    a future `dates` feature; nested types in a future `nested`
+    feature.
+- **Parquet metadata** surfaced via `Table.metadata`:
+  `num_row_groups` (parquet's row-group count, useful for
+  diagnostics on large files).
+- 5 new unit tests covering: extensions, name, missing-file →
+  `Error::Io`, invalid-content → `Error::ParseError`, basic
+  field-to-value mapping, `ULong` overflow → `Text` fallback.
+
+### Notes
+
+- **Why not the full Arrow runtime?** The `parquet` crate's
+  default feature set pulls in `arrow-array` + `arrow-buffer` +
+  several other Arrow crates that together weigh ~10 MB compiled.
+  tabkit's row-level reader API doesn't need any of that. If a
+  future tabkit feature wants to expose Arrow-typed batches
+  (e.g. for zero-copy hand-off to DuckDB), that'd be its own
+  feature with the heavier dep set.
+- **`row_count` semantics** match the calamine + csv readers:
+  `Some(n)` when known, where `n` excludes any header. Parquet
+  has no header concept — every row is data — so `n` is the
+  whole-file row count.
+- **Streamed/unknown writers**: parquet's `num_rows` can be `-1`
+  in some edge cases. We clamp to `0` rather than surfacing a
+  signed integer in the public contract.
+
 ## [0.1.0] — 2026-04-27
 
 ### Added
@@ -70,5 +119,6 @@ auxiliary types until 1.0 lands.
   only XLSX/CSV shouldn't pay for them. Planned for v0.2 / v0.3
   behind opt-in features.
 
-[Unreleased]: https://github.com/seryai/tabkit/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/seryai/tabkit/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/seryai/tabkit/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/seryai/tabkit/releases/tag/v0.1.0
