@@ -11,6 +11,26 @@ auxiliary types until 1.0 lands.
 
 ## [Unreleased]
 
+## [0.4.3] — 2026-04-27
+
+### Changed
+
+- **Generalised SQL-engine references throughout the docs.**
+  v0.4.x release notes and README sections previously named a
+  specific embedded SQL engine as the recommended composition
+  partner. The architectural advice was right; naming a specific
+  crate was overspecified. README's "Composing with X" section
+  becomes "When you need SQL"; the "Why no SQL feature"
+  section becomes "Why no SQL feature"; the deferred-roadmap
+  rationale stays intact but no longer prescribes a particular
+  engine. Pick whichever SQL crate fits your runtime — the
+  composition shape is the same.
+
+### Notes
+
+- Docs-only release; no API or behavior changes. Bump from
+  v0.4.2 with no code changes required.
+
 ## [0.4.2] — 2026-04-27
 
 ### Added
@@ -30,15 +50,12 @@ auxiliary types until 1.0 lands.
   ```bash
   cargo run --example custom_reader -- /path/to/data.ssv
   ```
-- **a SQL engine composition pattern** — documented in
-  [README §"When you need SQL"](README.md#composing-with-sql-engine)
-  rather than shipped as a runnable example. A working compose
-  example was prototyped during v0.4.2 development but the
-  bundled SQL engine Windows linker was unhappy and the build pain
-  wasn't worth it for a snippet the README already shows. If
-  someone wants a maintained runnable example we can revisit
-  with a better a SQL engine build story (e.g. via
-  `loadable-sql-engine`).
+- **SQL-composition pattern** — documented in
+  [README §"When you need SQL"](README.md#when-you-need-sql)
+  rather than shipped as a runnable example. A prototype example
+  was tried during v0.4.2 development but the bundled SQL engine
+  introduced a Windows linker headache that wasn't worth the
+  upkeep for a code snippet the README already covers.
 
 ### Notes
 
@@ -48,8 +65,9 @@ auxiliary types until 1.0 lands.
   *constructing* tables / columns from outside tabkit need the
   new methods. v0.4-stability commitments still hold — no
   variants removed, no signatures changed.
-- See [README §"Why no SQL feature"](README.md#why-no-sql-engine-feature)
-  for why a SQL engine stays out of tabkit's runtime surface entirely.
+- See [README §"Why no SQL feature"](README.md#why-no-sql-feature)
+  for why SQL engines stay out of tabkit's runtime surface
+  entirely — composition is cleaner than nesting.
 
 ## [0.4.1] — 2026-04-27
 
@@ -72,8 +90,8 @@ auxiliary types until 1.0 lands.
 - v0.4.1 is the first of v0.4.x's planned "examples + cookbook"
   iteration. Future releases will add a `custom_reader.rs` example
   (showing how to implement the `Reader` trait for a new format)
-  and a (removed example) example (showing the recommended
-  pattern for SQL queries on tabular data).
+  and SQL-composition documentation (the recommended pattern for
+  pairing tabkit with a SQL engine).
 - Examples are deliberately dep-light: no `clap` for arg parsing,
   no `serde` for output. Reading the surface should not require
   wading through unrelated crate ceremony.
@@ -116,11 +134,12 @@ required.
 ### Notes
 
 - **Why no SQL feature.** Documented in
-  [README §"Why no SQL feature"](README.md#why-no-sql-engine-feature):
-  dep weight (~50 MB), scope creep, duplicate-reader confusion,
-  cleaner composition with `sql-engine` directly. README also adds a
-  worked "When you need SQL" example showing the recommended
-  pattern.
+  [README §"Why no SQL feature"](README.md#why-no-sql-feature):
+  dep weight (embedded SQL engines are tens of MB compiled),
+  scope creep, duplicate-reader confusion, cleaner composition
+  with whichever SQL crate fits the consumer's runtime. README
+  has a brief "When you need SQL" section showing the
+  composition shape.
 - v0.4.x will iterate on **examples** (`examples/` directory),
   **cookbook**-style docs ("how to write a custom reader",
   "extending the Engine"), and any **niche backend polish** that
@@ -235,8 +254,8 @@ Both carry `String` payloads; the migration is `match value
   several other Arrow crates that together weigh ~10 MB compiled.
   tabkit's row-level reader API doesn't need any of that. If a
   future tabkit feature wants to expose Arrow-typed batches
-  (e.g. for zero-copy hand-off to a SQL engine), that'd be its own
-  feature with the heavier dep set.
+  (e.g. for zero-copy hand-off to a SQL engine), that'd be its
+  own feature with the heavier dep set.
 - **`row_count` semantics** match the calamine + csv readers:
   `Some(n)` when known, where `n` excludes any header. Parquet
   has no header concept — every row is data — so `n` is the
@@ -299,12 +318,13 @@ Both carry `String` payloads; the migration is `match value
 - **Why MSRV 1.85.** Matches the kit-family floor — single MSRV
   across `mdkit` / `scankit` / `tabkit` so downstream Tauri apps
   don't manage divergent toolchains.
-- **Why no `parquet` / `sql-engine` backends in v0.1.** Both add
-  significant compile-time + binary-size cost; consumers reading
-  only XLSX/CSV shouldn't pay for them. Planned for v0.2 / v0.3
-  behind opt-in features.
+- **Why no `parquet` backend in v0.1.** Adds significant
+  compile-time + binary-size cost; consumers reading only XLSX/
+  CSV shouldn't pay for it. Planned for v0.2 behind an opt-in
+  feature flag.
 
-[Unreleased]: https://github.com/seryai/tabkit/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/seryai/tabkit/compare/v0.4.3...HEAD
+[0.4.3]: https://github.com/seryai/tabkit/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/seryai/tabkit/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/seryai/tabkit/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/seryai/tabkit/compare/v0.3.0...v0.4.0
