@@ -17,8 +17,9 @@
 //!
 //! What `tabkit` deliberately does NOT do:
 //!
-//! - SQL queries. v0.2 may add an optional SQL-engine-backed query
-//!   feature; v0.1 stops at schema + samples.
+//! - SQL queries. Different consumers want different SQL
+//!   engines; pick yours and call it directly. tabkit stops at
+//!   schema + samples.
 //! - Full table iteration. Use the underlying crate
 //!   ([`calamine`](https://crates.io/crates/calamine),
 //!   [`csv`](https://crates.io/crates/csv)) directly if you need
