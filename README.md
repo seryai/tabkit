@@ -92,9 +92,17 @@ Runnable example programs live in [`examples/`](examples/):
   cargo run --example inspect -- /path/to/data.xlsx
   cargo run --example inspect --features parquet -- /path/to/data.parquet
   ```
-
-More examples (`custom_reader.rs`, (removed example)) land
-in v0.4.x.
+- [`custom_reader.rs`](examples/custom_reader.rs) — implement
+  the `Reader` trait for a custom format (a toy semicolon-
+  separated `.ssv`):
+  ```bash
+  cargo run --example custom_reader -- /path/to/data.ssv
+  ```
+- The a SQL engine composition pattern is documented in the
+  [When you need SQL](#composing-with-sql-engine) section below
+  rather than shipped as a runnable example. The pattern is short
+  enough to copy-paste and a SQL engine's bundled Windows build was
+  more pain than it was worth for a code snippet.
 
 ## Stability (v0.4+) {#stability-v04}
 

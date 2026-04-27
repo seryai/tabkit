@@ -11,6 +11,46 @@ auxiliary types until 1.0 lands.
 
 ## [Unreleased]
 
+## [0.4.2] — 2026-04-27
+
+### Added
+
+- **`Table::new(columns, sample_rows)`** and
+  **`Column::new(name, data_type, nullable)`** — constructors for
+  the two `#[non_exhaustive]` structs. Required because external
+  crates implementing a custom [`Reader`] can't construct via
+  struct-literal syntax once `#[non_exhaustive]` is on the type.
+  Surfaced when writing `examples/custom_reader.rs` and
+  immediately filled — a real API gap, not just example
+  ergonomics.
+- **`examples/custom_reader.rs`** — implements the `Reader` trait
+  for a toy semicolon-separated `.ssv` format, demonstrating the
+  registration pattern + the new `Table::new` / `Column::new`
+  constructors. Run with:
+  ```bash
+  cargo run --example custom_reader -- /path/to/data.ssv
+  ```
+- **a SQL engine composition pattern** — documented in
+  [README §"When you need SQL"](README.md#composing-with-sql-engine)
+  rather than shipped as a runnable example. A working compose
+  example was prototyped during v0.4.2 development but the
+  bundled SQL engine Windows linker was unhappy and the build pain
+  wasn't worth it for a snippet the README already shows. If
+  someone wants a maintained runnable example we can revisit
+  with a better a SQL engine build story (e.g. via
+  `loadable-sql-engine`).
+
+### Notes
+
+- The `Table::new` / `Column::new` additions are **API growth**,
+  not API change. Existing callers reading produced tables (the
+  default path) keep using struct field access; only callers
+  *constructing* tables / columns from outside tabkit need the
+  new methods. v0.4-stability commitments still hold — no
+  variants removed, no signatures changed.
+- See [README §"Why no SQL feature"](README.md#why-no-sql-engine-feature)
+  for why a SQL engine stays out of tabkit's runtime surface entirely.
+
 ## [0.4.1] — 2026-04-27
 
 ### Added
@@ -264,7 +304,8 @@ Both carry `String` payloads; the migration is `match value
   only XLSX/CSV shouldn't pay for them. Planned for v0.2 / v0.3
   behind opt-in features.
 
-[Unreleased]: https://github.com/seryai/tabkit/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/seryai/tabkit/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/seryai/tabkit/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/seryai/tabkit/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/seryai/tabkit/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/seryai/tabkit/compare/v0.2.0...v0.3.0
