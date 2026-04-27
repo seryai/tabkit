@@ -57,6 +57,45 @@
 //! ragged-row padding. `tabkit` ships the bits once with the
 //! edge cases (empty sheets, headerless CSVs, mixed-type
 //! columns) handled in one place.
+//!
+//! ## Stability commitment (v0.4+)
+//!
+//! v0.4 marks the **API stability candidate** for 1.0. The
+//! following surface is committed to and will only change with a
+//! major version bump:
+//!
+//! - The [`Reader`] trait shape — required methods, default
+//!   implementations, `Send + Sync` bound. Future trait methods
+//!   will land with default impls so existing implementors don't
+//!   break.
+//! - [`Engine`] construction + dispatch — `new`, `with_defaults`,
+//!   `register`, `read`, `len`, `is_empty`.
+//! - [`Table`] field set + the [`ReadOptions`] builder methods.
+//!   Marked `#[non_exhaustive]` so we can add fields without major
+//!   bumps.
+//! - [`Column`], [`DataType`], [`Value`], [`Error`] enums + structs.
+//!   All `#[non_exhaustive]` for the same forward-compat reason —
+//!   pattern-matchers must include a wildcard arm.
+//! - Feature flag names: `calamine`, `csv`, `parquet`, `full`.
+//!   Each backend's per-format extension list (`xlsx` / `csv` /
+//!   `parquet` / etc.) is also stable.
+//! - Per-reader `name()` strings (`"calamine"`, `"csv"`,
+//!   `"parquet"`) — used by callers for filtering / logging.
+//!
+//! The following are **implementation details** and may change in
+//! minor versions:
+//!
+//! - The internal layout of any specific reader (private fields,
+//!   helper methods, type-inference heuristics).
+//! - The exact set of `Table.metadata` keys per backend (new keys
+//!   may appear; documented keys stay).
+//! - The auto-registration order in [`Engine::with_defaults`] (the
+//!   fact that the first registered wins for overlapping
+//!   extensions stays; the specific order doesn't).
+//!
+//! 1.0 will be cut once the API is exercised by at least one
+//! downstream production user. [Sery Link](https://sery.ai) is
+//! the canonical integration target.
 
 #![doc(html_root_url = "https://docs.rs/tabkit")]
 #![cfg_attr(docsrs, feature(doc_cfg))]

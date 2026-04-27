@@ -5,13 +5,13 @@ reader Tauri / Iced / native desktop apps reach for when they need
 to introspect XLSX / CSV / TSV without inventing the same calamine-
 plus-type-inference glue twice.
 
-> **Status:** v0.3 — XLSX / XLS / XLSB / XLSM / ODS, CSV / TSV,
-> Parquet (opt-in via `parquet` feature). Schema inference, sample
-> row capping, header detection, ragged-row padding, AND typed
-> `Date` / `DateTime` cells (ISO-8601 strings) emitted by all
-> three readers. **No SQL** — see [When you need SQL](#composing-with-sql-engine)
-> for the recommended pattern. v0.4 will be an API stability
-> audit ahead of 1.0.
+> **Status:** v0.4 — **API stability candidate for 1.0**. Format
+> coverage closed in v0.3 (XLSX-family + CSV/TSV + Parquet, with
+> typed `Date` / `DateTime` cells). v0.4 freezes the public
+> surface — see the [stability section](#stability-v04) below
+> for what's locked in. v0.4.x will iterate on examples + cookbook
+> docs. 1.0 ships once the API is exercised by at least one
+> downstream production user.
 
 ## Why this exists
 
@@ -82,6 +82,40 @@ for row in &table.sample_rows {
 | `parquet` | Parquet via the `parquet` crate (default features off — no Arrow runtime) | ~3 MB compiled |
 | `full` | `calamine` + `csv` + `parquet` | ~4 MB compiled |
 
+## Stability (v0.4+) {#stability-v04}
+
+v0.4 is the **API stability candidate** for 1.0. The following
+surface is committed to and will only change with a major version
+bump:
+
+- The `Reader` trait shape — required methods, default
+  implementations, `Send + Sync` bound. Future trait methods land
+  with default impls so existing implementors don't break.
+- `Engine` construction + dispatch — `new`, `with_defaults`,
+  `register`, `read`, `len`, `is_empty`.
+- `Table`, `Column`, `Value`, `DataType`, `Error`, `ReadOptions`
+  field/variant sets. All `#[non_exhaustive]` so we can grow
+  them without major bumps. **Pattern-matchers must include a
+  wildcard arm.**
+- Feature flag names: `calamine`, `csv`, `parquet`, `full`. Each
+  reader's per-format extension list is also stable.
+- Per-reader `name()` strings (`"calamine"`, `"csv"`,
+  `"parquet"`).
+
+The following are **implementation details** and may change in
+minor versions:
+
+- Internal layout of any specific reader (private fields, helper
+  methods, type-inference heuristics).
+- Exact set of `Table.metadata` keys per backend (new keys may
+  appear; documented keys stay).
+- Auto-registration order in `Engine::with_defaults` (the rule
+  "first registered wins for overlapping extensions" stays; the
+  specific order doesn't).
+
+1.0 will be cut once the API is exercised by at least one
+downstream production user.
+
 ## When you need SQL {#composing-with-sql-engine}
 
 When you need SQL queries on tabular data, use [`sql-engine`][sql-engine]
@@ -132,9 +166,12 @@ at your option. SPDX: `MIT OR Apache-2.0`.
       (no chrono dep). All three readers emit typed dates for
       source values that carry date semantics. `Value` is now
       `#[non_exhaustive]` for forward-compat.
-- [ ] **v0.4 — audit pass + 1.0 candidate.** `#[non_exhaustive]`
-      audit, `#[must_use]` audit, stability commitments doc. Same
-      shape as `mdkit` v0.7 was for the trait-stable release.
+- [x] **v0.4 — audit pass + 1.0 candidate.** Stability
+      commitments doc in `lib.rs` + README. `#[non_exhaustive]`
+      already on every public struct + enum (added incrementally
+      v0.1 → v0.3); `#[must_use]` already on every constructor +
+      builder + accessor. Documentation-only release — no API-
+      shape changes.
 - [ ] **v1.0** — once exercised by at least one downstream
       production user. Sery Link is the canonical integration
       target; v1.0 ships once the API survives real use without
