@@ -173,6 +173,8 @@ fn pad_and_infer(column_names: &[String], sample_rows: &mut [Row]) -> Vec<Column
 ///   fits `i64`, else `Text`.
 /// - Decimal-looking → `Float` if `parse::<f64>` accepts it.
 /// - `true` / `false` (case-insensitive) → `Bool`.
+/// - ISO-8601 `YYYY-MM-DD` → `Date`.
+/// - ISO-8601 `YYYY-MM-DDTHH:MM:SS[.fff][±HH:MM|Z]` → `DateTime`.
 /// - Anything else → `Text`.
 fn parse_cell(raw: &str) -> Value {
     if raw.is_empty() {
@@ -206,6 +208,18 @@ fn parse_cell(raw: &str) -> Value {
             return Value::Float(f);
         }
     }
+    // Dates — detect ISO-8601 `YYYY-MM-DD` (date) and the longer
+    // datetime form. We rigid-pattern-match rather than pulling
+    // in `chrono` or `regex` because the cell shapes are
+    // canonical and the library stays dep-light. Other date
+    // dialects (`MM/DD/YYYY`, locale-specific) fall through to
+    // `Text` — callers wanting them can post-process.
+    if looks_like_iso_date(trimmed) {
+        return Value::Date(trimmed.to_string());
+    }
+    if looks_like_iso_datetime(trimmed) {
+        return Value::DateTime(trimmed.to_string());
+    }
     Value::Text(raw.to_string())
 }
 
@@ -219,6 +233,52 @@ fn is_plain_integer(s: &str) -> bool {
         return false;
     }
     bytes[start..].iter().all(u8::is_ascii_digit)
+}
+
+/// Rigid match on `YYYY-MM-DD` shape — exactly 10 chars, dashes at
+/// positions 4 and 7, ASCII digits everywhere else. We don't
+/// validate the date itself (Feb 30 still parses) — that's the
+/// caller's responsibility.
+fn looks_like_iso_date(s: &str) -> bool {
+    s.len() == 10
+        && s.as_bytes().iter().enumerate().all(|(idx, &b)| match idx {
+            4 | 7 => b == b'-',
+            _ => b.is_ascii_digit(),
+        })
+}
+
+/// Match on the prefix `YYYY-MM-DDTHH:MM:SS` (19 chars), with
+/// optional sub-second fraction and timezone. Examples:
+///
+/// - `2024-01-15T12:00:00`
+/// - `2024-01-15T12:00:00Z`
+/// - `2024-01-15T12:00:00.123`
+/// - `2024-01-15T12:00:00+02:00`
+///
+/// Some emitters use a space instead of `T`. We accept that too.
+fn looks_like_iso_datetime(s: &str) -> bool {
+    if s.len() < 19 {
+        return false;
+    }
+    let bytes = s.as_bytes();
+    let date_separator_ok = matches!(bytes[10], b'T' | b' ');
+    if !date_separator_ok {
+        return false;
+    }
+    // YYYY-MM-DD prefix.
+    let date_part_ok = bytes[..10].iter().enumerate().all(|(idx, &b)| match idx {
+        4 | 7 => b == b'-',
+        _ => b.is_ascii_digit(),
+    });
+    if !date_part_ok {
+        return false;
+    }
+    // HH:MM:SS — bytes 11-18.
+    let time_part_ok = bytes[11..19].iter().enumerate().all(|(idx, &b)| match idx {
+        2 | 5 => b == b':',
+        _ => b.is_ascii_digit(),
+    });
+    time_part_ok
 }
 
 #[cfg(test)]
@@ -347,5 +407,59 @@ mod tests {
         assert_eq!(parse_cell("true"), Value::Bool(true));
         assert_eq!(parse_cell("FALSE"), Value::Bool(false));
         assert_eq!(parse_cell("hello"), Value::Text("hello".into()));
+    }
+
+    #[test]
+    fn parse_cell_recognises_iso_dates() {
+        assert_eq!(parse_cell("2024-01-15"), Value::Date("2024-01-15".into()));
+        assert_eq!(parse_cell("1970-12-31"), Value::Date("1970-12-31".into()));
+    }
+
+    #[test]
+    fn parse_cell_recognises_iso_datetimes() {
+        assert_eq!(
+            parse_cell("2024-01-15T12:00:00"),
+            Value::DateTime("2024-01-15T12:00:00".into())
+        );
+        assert_eq!(
+            parse_cell("2024-01-15T12:00:00Z"),
+            Value::DateTime("2024-01-15T12:00:00Z".into())
+        );
+        assert_eq!(
+            parse_cell("2024-01-15T12:00:00.123"),
+            Value::DateTime("2024-01-15T12:00:00.123".into())
+        );
+        assert_eq!(
+            parse_cell("2024-01-15T12:00:00+02:00"),
+            Value::DateTime("2024-01-15T12:00:00+02:00".into())
+        );
+        // Space-separated form (some emitters use this instead of `T`).
+        assert_eq!(
+            parse_cell("2024-01-15 12:00:00"),
+            Value::DateTime("2024-01-15 12:00:00".into())
+        );
+    }
+
+    #[test]
+    fn parse_cell_rejects_non_iso_date_dialects() {
+        // MM/DD/YYYY and similar locale forms fall through to Text
+        // — caller post-processes if they want them.
+        assert_eq!(parse_cell("01/15/2024"), Value::Text("01/15/2024".into()));
+        // Pseudo-ISO that doesn't fit the rigid pattern.
+        assert_eq!(parse_cell("2024-1-15"), Value::Text("2024-1-15".into()));
+    }
+
+    #[test]
+    fn date_column_inferred_correctly_in_csv() {
+        let f = write_csv("created\n2024-01-15\n2024-02-20\n2024-03-31\n");
+        let table = CsvReader.read(f.path(), &ReadOptions::default()).unwrap();
+        assert_eq!(table.columns[0].data_type, crate::DataType::Date);
+    }
+
+    #[test]
+    fn date_plus_datetime_widens_to_datetime() {
+        let f = write_csv("ts\n2024-01-15\n2024-02-20T12:00:00\n");
+        let table = CsvReader.read(f.path(), &ReadOptions::default()).unwrap();
+        assert_eq!(table.columns[0].data_type, crate::DataType::DateTime);
     }
 }

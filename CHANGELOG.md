@@ -11,6 +11,73 @@ auxiliary types until 1.0 lands.
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-04-27
+
+### Added
+
+- **Typed `Date` / `DateTime` cell values.** `Value` gains
+  `Date(String)` and `DateTime(String)` variants whose payloads
+  are ISO-8601 strings (`YYYY-MM-DD` / `YYYY-MM-DDTHH:MM:SS[.fff]
+  [±HH:MM|Z]`). No `chrono` dep — the contract is "the string
+  parses as ISO-8601"; callers wanting typed dates parse the
+  string with `chrono::NaiveDate::parse_from_str` (or equivalent).
+- **`DataType::Date` / `DataType::DateTime`** join the inferred
+  type set. Type-promotion rule for date widening: `Date + DateTime
+  → DateTime`. All other date-mixing falls back to `Text`.
+- **All three readers emit typed dates** for source values that
+  carry date semantics:
+  - **calamine**: `Data::DateTime` → `Value::DateTime`;
+    `Data::DateTimeIso` → `Value::Date` if the string matches
+    `YYYY-MM-DD` exactly, otherwise `Value::DateTime`.
+  - **csv**: rigid pattern-match on cell strings —
+    `YYYY-MM-DD` (10 chars, dashes at positions 4 / 7) → `Date`;
+    `YYYY-MM-DDTHH:MM:SS` or `YYYY-MM-DD HH:MM:SS` (≥19 chars,
+    optional fractional + timezone tail) → `DateTime`. Other date
+    dialects (`MM/DD/YYYY`, etc.) fall through to `Text` — caller
+    can post-process.
+  - **parquet**: `Field::Date(i32)` → `Value::Date` (parquet's
+    own `Display` impl emits `YYYY-MM-DD`); `Field::TimestampMillis`
+    / `TimestampMicros` → `Value::DateTime` (parquet's `Display`
+    emits `YYYY-MM-DD HH:MM:SS`; we replace the space separator
+    with `T` to conform to our ISO contract).
+
+### Changed
+
+- **`#[non_exhaustive]` on `Value`** so future variants
+  (`Decimal`, `Time` for date-less time-of-day, etc.) can land in
+  minor versions without breaking downstream `match` blocks.
+  External pattern-matchers must include a wildcard arm.
+- The `infer_column_type` promotion rules are extracted into a
+  small `promote()` helper. Same outputs as v0.2; just easier to
+  read once date-widening was added.
+
+### Migration
+
+For most callers: bump the dep, rebuild. The only breaking change
+is `#[non_exhaustive]` on `Value` — callers exhaustively matching
+on `Value` in another crate need a wildcard arm:
+
+```rust
+match value {
+    Value::Null => ...,
+    Value::Bool(b) => ...,
+    // ... existing variants
+    _ => panic!("new tabkit Value variant — check the changelog"),
+}
+```
+
+Callers that consumed `Date` / `DateTime` cells as `Value::Text`
+will now see them as `Value::Date` / `Value::DateTime` instead.
+Both carry `String` payloads; the migration is `match value
+{ Value::Text(s) | Value::Date(s) | Value::DateTime(s) => s }`.
+
+### Notes
+
+- 5 new csv tests covering: ISO-8601 date detection, datetime
+  with `Z` / `.fff` / `±HH:MM`, space-separated form, rejection
+  of `MM/DD/YYYY` and other non-ISO dialects, column-level Date
+  inference, Date+DateTime widening to DateTime.
+
 ## [0.2.0] — 2026-04-27
 
 ### Added
@@ -119,6 +186,7 @@ auxiliary types until 1.0 lands.
   only XLSX/CSV shouldn't pay for them. Planned for v0.2 / v0.3
   behind opt-in features.
 
-[Unreleased]: https://github.com/seryai/tabkit/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/seryai/tabkit/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/seryai/tabkit/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/seryai/tabkit/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/seryai/tabkit/releases/tag/v0.1.0

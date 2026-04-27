@@ -179,45 +179,80 @@ fn raw_to_row(raw: &[Data], width: usize) -> Row {
     row
 }
 
-/// calamine's `Data` enum → tabkit's `Value`. `DateTime` and
-/// `Duration` flatten to their string form for v0.1 — a future
-/// `dates` feature could carry typed dates through.
+/// calamine's `Data` enum → tabkit's `Value`. v0.3 adds typed
+/// `Date` / `DateTime` emission for cells calamine flagged as
+/// date-typed; previously these flattened to `Text`.
 fn data_to_value(data: &Data) -> Value {
     match data {
         Data::Empty => Value::Null,
         Data::String(s) => Value::Text(s.clone()),
         Data::Bool(b) => Value::Bool(*b),
         Data::Int(i) => Value::Integer(*i),
-        Data::Float(f) => {
-            // Detect whole-number floats and demote to Integer.
-            // Excel stores everything as f64 by default; "1" comes
-            // through as `Float(1.0)` and we'd rather call it an
-            // integer for the schema.
-            //
-            // The `i64::MIN/MAX as f64` cast is exact for the
-            // boundaries we care about (powers of 2), and
-            // `f as i64` is a saturating cast guarded by the
-            // bound check — both are intentional. Clippy's
-            // cast-precision-loss + cast-possible-truncation
-            // warnings are noise here.
-            #[allow(
-                clippy::float_cmp,
-                clippy::cast_precision_loss,
-                clippy::cast_possible_truncation
-            )]
-            if f.is_finite() && f.fract() == 0.0 && *f >= i64::MIN as f64 && *f <= i64::MAX as f64 {
-                Value::Integer(*f as i64)
+        Data::Float(f) => float_to_value(*f),
+        // Excel-serial datetime (calamine 0.34's `Data::DateTime`
+        // wraps an `ExcelDateTime` whose `Display` impl emits
+        // ISO-8601 — e.g. `"2024-01-15T12:00:00"`). We pass the
+        // string through verbatim and flag it as a `DateTime` so
+        // schema inference picks it up correctly.
+        //
+        // For pure dates (no time component) Excel still stores
+        // them as datetime under the hood; we surface the result
+        // as `DateTime` rather than trying to detect "this happens
+        // to be midnight." Callers wanting strict date-only
+        // semantics should use the cell's number-format hint
+        // through the calamine API directly.
+        Data::DateTime(dt) => Value::DateTime(dt.to_string()),
+        // DateTimeIso comes pre-formatted as ISO-8601. Some cells
+        // are date-only (`YYYY-MM-DD`), others carry time —
+        // detect by length / presence of `T` / `:`.
+        Data::DateTimeIso(s) => {
+            if looks_like_date(s) {
+                Value::Date(s.clone())
             } else {
-                Value::Float(*f)
+                Value::DateTime(s.clone())
             }
         }
-        // DateTime / Duration / DurationIso / DateTimeIso / Error
-        // all flatten to their Display form. Errors include
-        // formula-error cells (`#REF!`, `#DIV/0!`, etc.) — we
-        // surface them as text rather than dropping so the user
-        // sees the cell's actual content.
+        // Error cells (#REF!, #DIV/0!, etc.) and durations flatten
+        // to text — the cell's display form is what the user sees
+        // in Excel and the closest analog in markdown.
         other => Value::Text(other.to_string()),
     }
+}
+
+/// Whole-number-float demotion + finite-range guard. Pulled out
+/// of [`data_to_value`] so the float-arithmetic clippy allows
+/// don't pollute the surrounding match arms.
+fn float_to_value(f: f64) -> Value {
+    // Detect whole-number floats and demote to Integer. Excel
+    // stores everything as f64 by default; "1" comes through as
+    // `Float(1.0)` and we'd rather call it an integer for the
+    // schema.
+    //
+    // The `i64::MIN/MAX as f64` cast is exact for the boundaries
+    // we care about (powers of 2); `f as i64` is a saturating
+    // cast guarded by the bound check.
+    #[allow(
+        clippy::float_cmp,
+        clippy::cast_precision_loss,
+        clippy::cast_possible_truncation
+    )]
+    if f.is_finite() && f.fract() == 0.0 && f >= i64::MIN as f64 && f <= i64::MAX as f64 {
+        Value::Integer(f as i64)
+    } else {
+        Value::Float(f)
+    }
+}
+
+/// Quick check for `YYYY-MM-DD` shape — used to distinguish
+/// date-only ISO strings from datetime ones in calamine's
+/// `DateTimeIso` cells. Pattern is rigid enough that a regex would
+/// be overkill.
+fn looks_like_date(s: &str) -> bool {
+    s.len() == 10
+        && s.as_bytes().iter().enumerate().all(|(idx, &b)| match idx {
+            4 | 7 => b == b'-',
+            _ => b.is_ascii_digit(),
+        })
 }
 
 #[cfg(test)]

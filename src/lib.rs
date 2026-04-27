@@ -127,9 +127,11 @@ pub struct Column {
 }
 
 /// Coarse-grained data types the inference pass produces. Designed
-/// to round-trip through JSON, so dates are surfaced as `Text`
-/// (ISO-8601 string) rather than carrying a chrono dependency. A
-/// future `dates` feature could add `Date` / `DateTime` variants.
+/// to round-trip through JSON.
+///
+/// `#[non_exhaustive]` so we can grow the enum (e.g. add a
+/// dedicated `Decimal` once we have a place to put one) without
+/// breaking external matches. Always include a wildcard arm.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[non_exhaustive]
 pub enum DataType {
@@ -140,9 +142,18 @@ pub enum DataType {
     Integer,
     /// Decimal / floating-point values.
     Float,
+    /// Calendar date (no time component). Backends emit this when
+    /// the source format flags a column as date-typed (calamine's
+    /// `DateTime`, parquet's `Date`, ISO-8601 `YYYY-MM-DD` strings
+    /// in CSV).
+    Date,
+    /// Date + time (with optional sub-second precision). Backends
+    /// emit this for calamine `DateTime`, parquet `TimestampMillis`/
+    /// `TimestampMicros`, ISO-8601 datetime strings in CSV.
+    DateTime,
     /// Free-text strings. Default when we can't pin to a more
-    /// specific type — date/time strings, mixed-type columns, and
-    /// empty-but-not-null columns all land here.
+    /// specific type — mixed-type columns, decimals with arbitrary
+    /// precision, formula results, etc. all land here.
     Text,
     /// Every sample row's cell was empty or null in this position.
     /// The column exists; we just couldn't infer a type.
@@ -157,11 +168,26 @@ pub enum DataType {
 pub type Row = Vec<Value>;
 
 /// One cell value. Keep the variants narrow — anything richer
-/// (dates, decimals with arbitrary precision, embedded formulas)
-/// degrades to `Text` so callers don't have to handle a
+/// (decimals with arbitrary precision, embedded formulas, currency
+/// types) degrades to `Text` so callers don't have to handle a
 /// combinatorial explosion of types. Round-trips cleanly through
 /// `serde_json::Value` for any caller that adds `serde`.
+///
+/// `#[non_exhaustive]` so we can grow the enum (a future
+/// `Decimal` variant, for instance) without breaking external
+/// matches. Always include a wildcard arm when matching.
+///
+/// **Date / `DateTime` payloads are ISO-8601 strings.** v0.3
+/// surfaces dates as their canonical text representation rather
+/// than carrying a `chrono` dependency in the public API; callers
+/// that need typed dates parse the string with `chrono::NaiveDate::parse_from_str`
+/// (or equivalent). A future `dates` feature could carry typed
+/// values alongside the strings, but the contract here is stable:
+/// `Value::Date(s)` always means `s` parses as ISO-8601
+/// `YYYY-MM-DD`; `Value::DateTime(s)` means
+/// `YYYY-MM-DDTHH:MM:SS[.fff][±HH:MM|Z]`.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum Value {
     /// Empty / missing cell.
     Null,
@@ -171,9 +197,14 @@ pub enum Value {
     Integer(i64),
     /// Decimal / floating-point.
     Float(f64),
-    /// Anything else, including dates, times, currencies,
-    /// formulas, and mixed-type cells. Caller decides how to
-    /// parse further.
+    /// ISO-8601 calendar date, `YYYY-MM-DD`.
+    Date(String),
+    /// ISO-8601 date + time. Format may include sub-second
+    /// precision and a timezone designator.
+    DateTime(String),
+    /// Anything else: mixed-type cells, formula results, decimals
+    /// outside `f64` precision, currency strings, etc. Caller
+    /// decides how to parse further.
     Text(String),
 }
 
@@ -189,6 +220,8 @@ impl Value {
             Self::Bool(_) => Some(DataType::Bool),
             Self::Integer(_) => Some(DataType::Integer),
             Self::Float(_) => Some(DataType::Float),
+            Self::Date(_) => Some(DataType::Date),
+            Self::DateTime(_) => Some(DataType::DateTime),
             Self::Text(_) => Some(DataType::Text),
         }
     }
@@ -382,9 +415,9 @@ fn extension_of(path: &Path) -> Option<String> {
 /// Rules (most-specific to most-general):
 /// - All-null → `Unknown`
 /// - All same type → that type
-/// - `Integer` + `Float` → `Float`
-/// - `Bool` + anything-else → `Text`
-/// - Anything-else mixed → `Text`
+/// - `Integer` + `Float` → `Float` (numeric widening)
+/// - `Date` + `DateTime` → `DateTime` (date widening)
+/// - Anything else mixed → `Text`
 #[cfg_attr(
     not(any(feature = "calamine", feature = "csv", feature = "parquet")),
     allow(dead_code)
@@ -396,17 +429,32 @@ pub(crate) fn infer_column_type(samples: &[Value]) -> (DataType, bool) {
         match v.data_type() {
             None => nullable = true,
             Some(t) => {
-                current = Some(match current {
-                    None => t,
-                    Some(c) if c == t => c,
-                    Some(DataType::Integer) if t == DataType::Float => DataType::Float,
-                    Some(DataType::Float) if t == DataType::Integer => DataType::Float,
-                    _ => DataType::Text,
-                });
+                current = Some(promote(current, t));
             }
         }
     }
     (current.unwrap_or(DataType::Unknown), nullable)
+}
+
+/// Combine an existing column-level inferred type with the
+/// type of a new cell. Pulled out so promotion rules live in one
+/// readable place — the `match` was getting deep when we added
+/// date-widening for v0.3.
+fn promote(current: Option<DataType>, new: DataType) -> DataType {
+    match (current, new) {
+        (None, t) => t,
+        (Some(c), t) if c == t => c,
+        // Numeric widening: Integer + Float → Float.
+        (Some(DataType::Integer), DataType::Float) | (Some(DataType::Float), DataType::Integer) => {
+            DataType::Float
+        }
+        // Date widening: Date + DateTime → DateTime.
+        (Some(DataType::Date), DataType::DateTime) | (Some(DataType::DateTime), DataType::Date) => {
+            DataType::DateTime
+        }
+        // Anything else mixed → Text.
+        _ => DataType::Text,
+    }
 }
 
 #[cfg(test)]

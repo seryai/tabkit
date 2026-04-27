@@ -5,16 +5,12 @@ reader Tauri / Iced / native desktop apps reach for when they need
 to introspect XLSX / CSV / TSV without inventing the same calamine-
 plus-type-inference glue twice.
 
-> **Status:** v0.2 — XLSX / XLS / XLSB / XLSM / ODS via
-> [`calamine`](https://crates.io/crates/calamine), CSV / TSV via
-> [`csv`](https://crates.io/crates/csv), AND Parquet via the
-> [`parquet`](https://crates.io/crates/parquet) crate (opt-in
-> behind the `parquet` feature; off by default to keep the
-> XLSX/CSV-only consumer's compile time + binary size low).
-> Schema inference, sample row capping, header detection,
-> ragged-row padding all handled uniformly across formats.
-> DuckDB-backed SQL queries planned for v0.3 behind another
-> opt-in feature.
+> **Status:** v0.3 — XLSX / XLS / XLSB / XLSM / ODS, CSV / TSV,
+> Parquet (opt-in via `parquet` feature). Schema inference, sample
+> row capping, header detection, ragged-row padding, AND typed
+> `Date` / `DateTime` cells (ISO-8601 strings) emitted by all
+> three readers. DuckDB-backed SQL queries planned for v0.4 behind
+> another opt-in feature.
 
 ## Why this exists
 
@@ -102,12 +98,14 @@ at your option. SPDX: `MIT OR Apache-2.0`.
 - [x] **v0.2 — `parquet` feature.** Apache Parquet read support
       via the `parquet` crate (default features off — no Arrow
       runtime). Same schema-and-samples surface, same type-
-      inference rules. `ULong` overflow falls back to `Text` so
-      values >`i64::MAX` survive the JSON round-trip.
-- [ ] v0.3 — `duckdb` feature (optional SQL query interface on top
+      inference rules.
+- [x] **v0.3 — typed dates.** `Value::Date(String)` /
+      `Value::DateTime(String)` with ISO-8601 string payloads
+      (no chrono dep). All three readers emit typed dates for
+      source values that carry date semantics. `Value` is now
+      `#[non_exhaustive]` for forward-compat.
+- [ ] v0.4 — `duckdb` feature (optional SQL query interface on top
       of any read table; opt-in because DuckDB is a ~50 MB dep).
-- [ ] v0.4 — typed dates via a `dates` feature
-      (`DataType::Date` + `DataType::DateTime`, `Value::Date(...)`).
 - [ ] v0.5 — audit pass + first stable trait release (1.0
       candidate).
 
